@@ -2,7 +2,7 @@
 Financial management API software 
 
 ## Disclaimer  
-All commands are available in the Makefile. Use the following command to see available targets:  
+All commands are available in the Makefile. Use the following command to see available targetssss:  
 ```shell
 make help
 ```  

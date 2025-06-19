@@ -19,11 +19,12 @@ logo_path = os.path.join(settings.BASE_DIR, 'static', 'images', 'finance-logo.pn
 class BalanceView(APIView):
 
     def get(self, request, *args, **kwargs):
+        user = request.user
 
         # Obter os anos e meses que possuem registros de incomes ou expenses
         months_with_data = (
-            Incomes.objects.values('created_at__year', 'created_at__month')
-            .union(Expenses.objects.values('created_at__year', 'created_at__month'))
+            Incomes.objects.filter(user=user).values('created_at__year', 'created_at__month')
+            .union(Expenses.objects.filter(user=user).values('created_at__year', 'created_at__month'))
         )
 
         balances = []
@@ -33,12 +34,12 @@ class BalanceView(APIView):
             month = month_data['created_at__month']
 
             # Calcular os totais de incomes e expenses do mês
-            total_incomes = Incomes.objects.filter(created_at__year=year, created_at__month=month).aggregate(total=Sum("value"))["total"] or 0
-            total_expenses = Expenses.objects.filter(created_at__year=year, created_at__month=month).aggregate(total=Sum("value"))["total"] or 0
+            total_incomes = Incomes.objects.filter(user=user, created_at__year=year, created_at__month=month).aggregate(total=Sum("value"))["total"] or 0
+            total_expenses = Expenses.objects.filter(user=user, created_at__year=year, created_at__month=month).aggregate(total=Sum("value"))["total"] or 0
             total_balance = total_incomes - total_expenses
             
             # Verificar se já existe um registro de balance para esse mês
-            existing_balance = Balance.objects.filter(data__year=year, data__month=month).first()
+            existing_balance = Balance.objects.filter(user=user, data__year=year, data__month=month).first()
 
             if existing_balance:
                 # Atualiza os valores se já existir um balance no banco
@@ -68,10 +69,12 @@ class BalanceView(APIView):
 # OBTÉM O BALANÇO DO MÊS ATUAL
 class TotalBalanceView(APIView):
     def get(self, request, *args, **kwargs):
+        user = request.user
         today = now()
 
         month_expenses = (
             Expenses.objects.filter(
+                user=user,
                 created_at__year=today.year, 
                 created_at__month=today.month
             ).aggregate(total=Sum("value"))["total"] or 0
@@ -79,6 +82,7 @@ class TotalBalanceView(APIView):
 
         month_incomes = (
             Incomes.objects.filter(
+                user=user,
                 created_at__year=today.year, created_at__month=today.month
             ).aggregate(total=Sum("value"))["total"] or 0
         )
@@ -91,6 +95,7 @@ class TotalBalanceView(APIView):
 # FILTRO POR DATA QUE OBTÉM O BALANÇO, RECEITAS E DESPESAS TOTAIS NO INTERVALO DE DATA DESEJADO
 class FilterBalanceByDateView(APIView):
     def get(self, request, *args, **kwargs):
+        user = request.user
 
         start_date_str = request.query_params.get("start_date")
         end_date_str = request.query_params.get("end_date")
@@ -109,12 +114,14 @@ class FilterBalanceByDateView(APIView):
 
         month_expenses = (
             Expenses.objects.filter(
+                user=user,
                 created_at__range=[start_month, end_month]
             ).aggregate(total=Sum("value"))["total"] or 0
         )
 
         month_incomes = (
             Incomes.objects.filter(
+                user=user,
                 created_at__range=[start_date, end_date]
             ).aggregate(total=Sum("value"))["total"] or 0
         )
@@ -127,6 +134,8 @@ class FilterBalanceByDateView(APIView):
 class DownloadPdfByDateView(APIView):
 
     def get(self, request):
+        user = request.user
+
         start_date_str = request.query_params.get("start_date")
         end_date_str = request.query_params.get("end_date")
 
@@ -139,8 +148,8 @@ class DownloadPdfByDateView(APIView):
             return Response({"error": "Invalid date format. Use YYYY-MM-DD."}, status=400)
         
         try:
-            incomes = Incomes.objects.filter(created_at__range=[start_date, end_date])
-            expenses = Expenses.objects.filter(created_at__range=[start_date, end_date])
+            incomes = Incomes.objects.filter(user=user, created_at__range=[start_date, end_date])
+            expenses = Expenses.objects.filter(user=user, created_at__range=[start_date, end_date])
         except Exception as e:
             return Response({"error": f"Error fetching data: {str(e)}"}, status=500)
 

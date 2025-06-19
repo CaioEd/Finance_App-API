@@ -13,6 +13,11 @@ class IncomeViewSet(viewsets.ModelViewSet):
     queryset = Incomes.objects.all()
     serializer_class = IncomeSerializer
 
+    def get_queryset(self):
+        return Incomes.objects.filter(user=self.request.user)
+    
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
 
 
 class TotalIncomesView(APIView):
@@ -20,7 +25,9 @@ class TotalIncomesView(APIView):
         today = now()
         month_incomes = (
             Incomes.objects.filter(
-                created_at__year=today.year, created_at__month=today.month
+                user=request.user,
+                created_at__year=today.year, 
+                created_at__month=today.month
             ).aggregate(total=Sum("value"))["total"] or 0
         )
 
