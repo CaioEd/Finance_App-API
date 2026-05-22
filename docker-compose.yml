@@ -6,7 +6,7 @@ services:
     container_name: finance-app-db
     environment:
       POSTGRES_DB: finance-app-db
-      POSTGRES_USER: root
+      POSTGRES_USER: finance-user
       POSTGRES_PASSWORD: fadbp01
     ports:
       - "5432:5432"
