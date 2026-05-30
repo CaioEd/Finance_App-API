@@ -16,6 +16,7 @@ REST API para gestão financeira pessoal construída com Django 5 e Django REST 
 - Django 5.1 + Django REST Framework
 - PostgreSQL 15 (via Docker Compose)
 - `djangorestframework-simplejwt` para autenticação JWT
+- `drf-spectacular` para geração do schema OpenAPI 3 e UIs Swagger/ReDoc
 - `reportlab` para geração de PDFs
 
 ## Pré-requisitos
@@ -115,6 +116,36 @@ make run          # inicia o servidor de desenvolvimento em http://localhost:800
 
 A API ficará disponível em `http://localhost:8000/api/` e o admin em `http://localhost:8000/admin/`.
 
+## Documentação interativa (Swagger / ReDoc)
+
+A API expõe documentação OpenAPI 3 gerada automaticamente pelo [`drf-spectacular`](https://drf-spectacular.readthedocs.io/), com duas UIs e o schema cru disponíveis após `make run`:
+
+| Rota              | O que é                                                                 |
+| ----------------- | ----------------------------------------------------------------------- |
+| `/api/docs/`      | Swagger UI — interface interativa para executar requisições no browser |
+| `/api/redoc/`     | ReDoc — visualização em formato de documentação (read-only)             |
+| `/api/schema/`    | Schema OpenAPI 3 em YAML (use para gerar clients, importar no Postman, etc.) |
+
+### Como usar o Swagger UI para fazer CRUD
+
+1. Suba a aplicação com `make database && make run` e acesse `http://localhost:8000/api/docs/`.
+2. Crie um usuário em **POST `/api/register/`** ou use um existente.
+3. Autentique em **POST `/api/login/`** (ou `/api/token/`) com `{ "email": "...", "password": "..." }` e copie o valor do campo `access` da resposta.
+4. Clique em **Authorize** (cadeado no topo da página) e cole `Bearer <access_token>` no campo `jwtAuth`. O token fica salvo entre requests (`persistAuthorization: true`).
+5. Expanda qualquer endpoint, clique em **Try it out**, preencha os campos e dispare **Execute** — a resposta real volta logo abaixo.
+
+### Gerando o schema em arquivo
+
+Útil para importar em ferramentas externas (Postman, Insomnia, geradores de SDK):
+
+```shell
+python manage.py spectacular --file schema.yml
+```
+
+### Customizando os metadados
+
+Título, descrição e versão da doc ficam em `SPECTACULAR_SETTINGS`, dentro de `finance_hub/settings.py`. Para anotar endpoints `APIView` (request/response, query params, tags), use o decorator `@extend_schema` — exemplos vivos em `apps/users/views.py`, `apps/balance/views.py`, `apps/incomes/views.py` e `apps/expenses/views.py`.
+
 ### Sem Make (Windows nativo)
 
 ```powershell
@@ -170,3 +201,6 @@ Todas as sub-aplicações compartilham o mesmo registro em `INSTALLED_APPS` (`ap
 | GET    | `/api/balance/month/`             | Balanço do mês corrente                    |
 | GET    | `/api/balance/date/`              | Balanço por intervalo (`start_date`, `end_date`) |
 | GET    | `/api/download/balance/date/`     | Download do PDF do balanço por intervalo   |
+| GET    | `/api/docs/`                      | Swagger UI (documentação interativa)       |
+| GET    | `/api/redoc/`                     | ReDoc (documentação read-only)             |
+| GET    | `/api/schema/`                    | Schema OpenAPI 3 em YAML                   |
