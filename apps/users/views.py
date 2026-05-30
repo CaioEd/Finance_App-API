@@ -1,4 +1,4 @@
-from rest_framework import viewsets, status
+from rest_framework import viewsets, status, serializers
 from rest_framework.response import Response
 from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -7,8 +7,29 @@ from django.contrib.auth import authenticate
 from rest_framework.authtoken.models import Token
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView
+from drf_spectacular.utils import extend_schema, inline_serializer, OpenApiResponse
 from .serializer import UserSerializer, CustomTokenObtainPairSerializer
 from .serializer import UserSerializer
+
+
+class LoginRequestSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+    password = serializers.CharField(write_only=True)
+
+
+class TokenPairSerializer(serializers.Serializer):
+    refresh = serializers.CharField()
+    access = serializers.CharField()
+
+
+class RegisterResponseSerializer(serializers.Serializer):
+    refresh = serializers.CharField()
+    access = serializers.CharField()
+    user = UserSerializer()
+
+
+class LogoutRequestSerializer(serializers.Serializer):
+    refresh = serializers.CharField()
 
 
 class UserViewSet(viewsets.ModelViewSet):
@@ -22,6 +43,15 @@ class UserViewSet(viewsets.ModelViewSet):
         return Response(serializer.data)
 
 
+@extend_schema(
+    tags=['auth'],
+    request=UserSerializer,
+    responses={
+        201: RegisterResponseSerializer,
+        400: OpenApiResponse(description='Validation errors'),
+    },
+    summary='Register a new user and return JWT pair',
+)
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def register_user(request):
@@ -37,6 +67,21 @@ def register_user(request):
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
+@extend_schema(
+    tags=['auth'],
+    request=LoginRequestSerializer,
+    responses={
+        200: TokenPairSerializer,
+        400: OpenApiResponse(
+            response=inline_serializer(
+                name='LoginErrorResponse',
+                fields={'error': serializers.CharField()},
+            ),
+            description='Invalid credentials',
+        ),
+    },
+    summary='Authenticate with email + password, return JWT pair',
+)
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def login_user(request):
@@ -61,7 +106,28 @@ class CustomTokenObtainPairView(TokenObtainPairView):
     serializer_class = CustomTokenObtainPairSerializer
 
 
-# Novo endpoint para logout 
+# Novo endpoint para logout
+@extend_schema(
+    tags=['auth'],
+    request=LogoutRequestSerializer,
+    responses={
+        205: OpenApiResponse(
+            response=inline_serializer(
+                name='LogoutSuccessResponse',
+                fields={'success': serializers.CharField()},
+            ),
+            description='Refresh token successfully blacklisted',
+        ),
+        400: OpenApiResponse(
+            response=inline_serializer(
+                name='LogoutErrorResponse',
+                fields={'error': serializers.CharField()},
+            ),
+            description='Invalid or missing refresh token',
+        ),
+    },
+    summary='Blacklist the provided refresh token',
+)
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def logout_user(request):

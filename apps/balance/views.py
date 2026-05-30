@@ -1,3 +1,4 @@
+from rest_framework import serializers
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from datetime import datetime, timedelta
@@ -5,6 +6,13 @@ from django.utils.timezone import now
 from django.db.models import Sum
 from django.http import FileResponse
 from django.conf import settings
+from drf_spectacular.utils import (
+    extend_schema,
+    inline_serializer,
+    OpenApiParameter,
+    OpenApiResponse,
+    OpenApiTypes,
+)
 from .models import Balance
 from apps.expenses.models import Expenses
 from apps.incomes.models import Incomes
@@ -15,9 +23,50 @@ import os
 
 logo_path = os.path.join(settings.BASE_DIR, 'static', 'images', 'finance-logo.png')
 
+
+_DATE_RANGE_PARAMS = [
+    OpenApiParameter(
+        name='start_date',
+        location=OpenApiParameter.QUERY,
+        required=True,
+        type=OpenApiTypes.DATE,
+        description='Inclusive start date (YYYY-MM-DD).',
+    ),
+    OpenApiParameter(
+        name='end_date',
+        location=OpenApiParameter.QUERY,
+        required=True,
+        type=OpenApiTypes.DATE,
+        description='Inclusive end date (YYYY-MM-DD).',
+    ),
+]
+
+_DATE_ERROR_RESPONSE = OpenApiResponse(
+    response=inline_serializer(
+        name='BalanceDateErrorResponse',
+        fields={'error': serializers.CharField()},
+    ),
+    description='Missing or invalid start_date/end_date.',
+)
+
+
 # OBTÉM OS BALANÇOS DE TODOS OS MESES, INCLUINDO RECEITAS E DESPESAS
 class BalanceView(APIView):
 
+    @extend_schema(
+        tags=['balance'],
+        responses=inline_serializer(
+            name='MonthlyBalanceResponse',
+            fields={
+                'month': serializers.CharField(),
+                'total_income': serializers.DecimalField(max_digits=12, decimal_places=2),
+                'total_expense': serializers.DecimalField(max_digits=12, decimal_places=2),
+                'total_balance': serializers.DecimalField(max_digits=12, decimal_places=2),
+            },
+            many=True,
+        ),
+        summary='Per-month balance breakdown for every month with activity',
+    )
     def get(self, request, *args, **kwargs):
         user = request.user
 
@@ -68,6 +117,14 @@ class BalanceView(APIView):
 
 # OBTÉM O BALANÇO DO MÊS ATUAL
 class TotalBalanceView(APIView):
+    @extend_schema(
+        tags=['balance'],
+        responses=inline_serializer(
+            name='TotalBalanceResponse',
+            fields={'total_balance': serializers.DecimalField(max_digits=12, decimal_places=2)},
+        ),
+        summary='Net balance (incomes - expenses) for the current month',
+    )
     def get(self, request, *args, **kwargs):
         user = request.user
         today = now()
@@ -94,6 +151,22 @@ class TotalBalanceView(APIView):
 
 # FILTRO POR DATA QUE OBTÉM O BALANÇO, RECEITAS E DESPESAS TOTAIS NO INTERVALO DE DATA DESEJADO
 class FilterBalanceByDateView(APIView):
+    @extend_schema(
+        tags=['balance'],
+        parameters=_DATE_RANGE_PARAMS,
+        responses={
+            200: inline_serializer(
+                name='FilterBalanceByDateResponse',
+                fields={
+                    'total_balance': serializers.DecimalField(max_digits=12, decimal_places=2),
+                    'incomes': serializers.DecimalField(max_digits=12, decimal_places=2),
+                    'expenses': serializers.DecimalField(max_digits=12, decimal_places=2),
+                },
+            ),
+            400: _DATE_ERROR_RESPONSE,
+        },
+        summary='Totals (incomes, expenses, balance) for a date range',
+    )
     def get(self, request, *args, **kwargs):
         user = request.user
 
@@ -133,6 +206,25 @@ class FilterBalanceByDateView(APIView):
 
 class DownloadPdfByDateView(APIView):
 
+    @extend_schema(
+        tags=['balance'],
+        parameters=_DATE_RANGE_PARAMS,
+        responses={
+            200: OpenApiResponse(
+                response=OpenApiTypes.BINARY,
+                description='PDF financial summary for the requested date range.',
+            ),
+            400: _DATE_ERROR_RESPONSE,
+            500: OpenApiResponse(
+                response=inline_serializer(
+                    name='DownloadPdfErrorResponse',
+                    fields={'error': serializers.CharField()},
+                ),
+                description='Error fetching the underlying data.',
+            ),
+        },
+        summary='Download a PDF financial summary for a date range',
+    )
     def get(self, request):
         user = request.user
 
