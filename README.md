@@ -172,7 +172,7 @@ python manage.py test apps.expenses
 
 ```
 finance_hub/        # configurações do projeto Django (settings, urls, wsgi)
-apps/
+apps/               # pacote Python que agrupa os apps (não é um app Django)
 ├── users/          # registro, login, JWT customizado, autenticação por e-mail
 ├── incomes/        # receitas (modelo, viewset, totais mensais)
 ├── expenses/       # despesas (modelo, viewset, totais mensais)
@@ -183,7 +183,7 @@ docker-compose.yml
 requirements.txt
 ```
 
-Todas as sub-aplicações compartilham o mesmo registro em `INSTALLED_APPS` (`apps`) e a mesma pasta de migrações (`apps/migrations/`).
+Cada subpasta de `apps/` é um **app Django independente**, registrado em `INSTALLED_APPS` pelo seu próprio `AppConfig` (`apps.users.apps.UsersConfig`, `apps.incomes.apps.IncomesConfig`, etc.) e com sua própria pasta de migrações (`apps/<app>/migrations/`). O app `users` não tem modelos — reaproveita o `auth.User` do Django.
 
 ## Principais endpoints
 
