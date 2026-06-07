@@ -12,13 +12,13 @@ All workflows are wrapped in the `Makefile` (run `make help` for the menu):
 - `make run` — `python manage.py runserver` (Django dev server on :8000).
 - `make install` / `make freeze` — install or regenerate `requirements.txt`.
 - `python manage.py createsuperuser` — create an admin user for `/admin/`.
-- `python manage.py test apps.<app>` — run tests for a single app (e.g. `apps.expenses`); each app has its own `tests.py`.
+- `python manage.py test apps.<app>` — run tests for a single app (e.g. `apps.expenses`); each app is a real Django app with its own `AppConfig`, `tests.py` and `migrations/`.
 
 Local Postgres credentials hardcoded in `docker-compose.yml` (db `finance-app-db`, user `finance-user`, password `fadbp01`) must match the `DB_*` values in `.env` for `make migrate`/`make run` to connect.
 
 ## Architecture
 
-Single Django 5.1 project (`finance_hub/`) with one Django app package (`apps/`) that contains four logical sub-modules: `users`, `incomes`, `expenses`, `balance`. Only `apps` is registered in `INSTALLED_APPS` — the sub-modules are not separate Django apps, they share `apps/migrations/` and `apps/apps.py`. When adding models in a sub-module, the migration lands under `apps/migrations/`.
+Single Django 5.1 project (`finance_hub/`) with a namespace package (`apps/`) holding four **separate Django apps**: `users`, `incomes`, `expenses`, `balance`. Each is registered in `INSTALLED_APPS` via its own `AppConfig` (`apps.users.apps.UsersConfig`, `apps.incomes.apps.IncomesConfig`, `apps.expenses.apps.ExpensesConfig`, `apps.balance.apps.BalanceConfig`), and each defines an explicit short `label` (`users`, `incomes`, `expenses`, `balance`). Each app owns its `migrations/` package, its `admin.py`, and its `models.py` (except `users`, which has no models — it reuses `auth.User`). When adding a model to an app, the migration lands under that app's own `migrations/` directory, and the resulting table is `<label>_<model>` (e.g. `incomes_incomes`). `apps/` itself is **not** a Django app — it is only a Python package grouping the four apps.
 
 ### URL surface
 All routes are declared in `finance_hub/urls.py`. The router pattern is: each sub-module exposes a DRF `DefaultRouter` from its own `urls.py` (`users`, `incomes`, `expenses`) and is `include()`d under `api/`. `balance` has no router — its `APIView` classes are wired directly in the project `urls.py`. Aggregate endpoints (`/api/incomes/month`, `/api/expenses/month`, `/api/balance/month/`, `/api/balance/date/`, `/api/download/balance/date/`) also live in the project `urls.py` rather than in sub-module routers.
